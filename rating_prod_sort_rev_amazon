@@ -1,0 +1,99 @@
+import pandas as pd
+import math
+import scipy.stats as st
+from sklearn.preprocessing import MinMaxScaler
+pd.set_option("display.max_columns", None)
+pd.set_option("display.max_rows", None)
+pd.set_option("display.width", 500)
+pd.set_option("display.expand_frame_repr", False)
+pd.set_option("display.float_format", lambda x: "%.2f" % x)
+
+df = pd.read_csv("C:/Users/Asus/PycharmProjects/pythonProject4/venv/datasets/amazon_review.csv")
+df.head(10)
+df.shape
+
+
+df["overall"].mean()
+
+
+df["reviewTime"] = pd.to_datetime(df["reviewTime"])
+current_date = df["reviewTime"].max()
+df["days"] = (current_date - df["reviewTime"]).dt.days
+df["days"].head()
+df.head()
+
+print(df["days"].quantile([.25, .5, .75]))
+
+q1 = df["days"].quantile(.25)    # q1=280
+q2 = df["days"].quantile(.50)    # q2=430
+q3 = df["days"].quantile(.75)    # q3=600
+
+
+dilim_1 = df.loc[df["days"] <= q1, "overall"].mean()
+dilim_2 = df.loc[(df["days"] > q1) & (df["days"] <= q2), "overall"].mean()
+dilim_3 = df.loc[(df["days"] > q2) & (df["days"] <= q3), "overall"].mean()
+dilim_4 = df.loc[df["days"] > q3, "overall"].mean()
+
+dilim_dict = {"dilim_1": dilim_1, "dilim_2": dilim_2, "dilim_3": dilim_3, "dilim_4": dilim_4}
+{k: v for k, v in sorted(dilim_dict.items(), key=lambda item: item[1])}
+
+dilim_1_weighted = df.loc[df["days"] <= q1, "overall"].mean() * 28 / 100
+dilim_2_weighted = df.loc[(df["days"] > q1) & (df["days"] <= q2), "overall"].mean() * 26 / 100
+dilim_3_weighted = df.loc[(df["days"] > q2) & (df["days"] <= q3), "overall"].mean() * 24 / 100
+dilim_4_weighted = df.loc[df["days"] > q3, "overall"].mean() * 22 / 100
+
+dilim_all_weighted = dilim_1_weighted + dilim_2_weighted + dilim_3_weighted + dilim_4_weighted
+
+
+df.head(20)
+df["reviewText"].head()
+df["helpful_no"] = df["total_vote"] - df["helpful_yes"]
+df["helpful_no"].head()
+
+
+def score_pos_neg_diff(up, down):
+    return up - down
+
+def score_average_rating(up, down):
+    if up + down == 0:
+        return 0
+    return up / (up + down)
+
+def wilson_lower_bound(up, down, confidence=0.95):
+    """
+    Calculate Wilson Lower Bound Score
+    - The lower bound of the confidence interval for the Bernoulli parameter p is considered the WLB score.
+    - The calculated score is used for product ranking.
+    - Note: 
+      If the scores range from 1 to 5, scores 1-3 are marked as negative, and 4-5 as positive, making them suitable for Bernoulli. 
+      However, this brings some challenges, so performing a Bayesian average rating is necessary.
+
+    Parameters
+    ----------
+    up: int
+        up count
+    down: int
+        down count
+    confidence: float
+        confidence
+
+    Returns
+    -------
+    wilson score: float
+    """
+    n = up + down
+    if n == 0:
+        return 0
+    z = st.norm.ppf(1 - (1 - confidence) / 2)
+    phat = 1.0 * up / n
+    return (phat + z * z / (2 * n) - z * math.sqrt((phat * (1 - phat) + z * z / (4 * n)) / n)) / (1 + z * z / n)
+
+
+df["score_pos_neg_diff"] = df.apply(lambda x: score_pos_neg_diff(x["helpful_yes"], x["helpful_no"]), axis=1)
+
+df["score_average_rating"] = df.apply(lambda x: score_average_rating(x["helpful_yes"], x["helpful_no"]), axis=1)
+
+df["wilson_lower_bound"] = df.apply(lambda x: wilson_lower_bound(x["helpful_yes"], x["helpful_no"]), axis=1)
+
+df.head(20)
+df.sort_values("wilson_lower_bound", ascending=False).head()
