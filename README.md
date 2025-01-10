@@ -1,4 +1,4 @@
-Rating Product & Sorting Reviews in Amazon
+# Rating Product & Sorting Reviews in Amazon
 
 One of the most important issues in e-commerce is the accurate calculation of post-sale ratings for products. 
 Solving this problem means more customer satisfaction for the e-commerce site, increased product visibility for sellers, and a smooth shopping experience for buyers.
